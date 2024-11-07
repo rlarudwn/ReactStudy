@@ -1,7 +1,7 @@
 import { Link, useParams } from "../../../node_modules/react-router-dom/dist/index"
-import { useQuery } from "react-query"
+import { useQuery, useMutation } from "react-query"
 import httpCommons from "../../http-commons"
-import { Fragment } from "react"
+import { Fragment, useCallback, useState } from "react"
 import { Navigation, Pagination, Scrollbar, A11y, Autoplay } from 'swiper/modules';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import 'swiper/css';
@@ -9,11 +9,70 @@ import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
 import 'swiper/css/scrollbar';
+import Review from "./Review"
 function MeterialDetail() {
+  const [msg, setMsg] = useState('')
+  const [rating, setRating] = useState(1)
   const { mno } = useParams()
-  const { isLoading, isError, error, data } = useQuery(['meterialDetail', mno],
+  const [first, setFirst] = useState(true)
+  const rInsert = useMutation(
+    async () => {
+      await httpCommons.post(`/comment/insertReact`, {
+        id: window.sessionStorage.id,
+        nickname: window.sessionStorage.nickname,
+        mno: mno,
+        content: msg,
+        rating: rating
+      })
+    }, {
+    onSuccess: () => {
+      refetch()
+    }
+  }
+  )
+  const { isLoading, isError, error, data, refetch } = useQuery(['meterialDetail', mno],
     async () => {
       return await httpCommons.get(`/recipe/meterialDetail/${mno}`)
+    }, {
+      onSuccess: (data) => {
+        if (first) {
+          hitIncrement.mutate()
+        }
+      }
+    }
+  )
+  const ratingChange = useCallback((rate) => {
+    setRating(rate)
+  }, [])
+  const msgInsert = useCallback((msg) => {
+    setMsg(msg)
+  }, [])
+  const submitReview = useCallback(() => {
+    if (msg.trim() === '') {
+      alert('내용을 입력하세요')
+      return
+    }
+    rInsert.mutate()
+    refetch()
+  })
+  const hitIncrement = useMutation(
+    async () => {
+      setFirst(false)
+      await httpCommons.get(`/meterial/hitIncrement/${mno}`)
+      refetch()
+    }
+  )
+  const deleteReview=useCallback((rno)=>{
+    rDelete.mutate(rno)
+    refetch()
+  })
+  const rDelete=useMutation(
+    async (rno)=>{
+      await httpCommons.delete(`comment/deleteReact/${rno}`)
+    },{
+      onSuccess:()=>{
+        refetch()
+      }
     }
   )
   if (isLoading)
@@ -77,7 +136,7 @@ function MeterialDetail() {
               </div>
             </div>
             <div className="col-lg-12">
-              <div className="product__details__tab" style={{paddingTop:'0px'}}>
+              <div className="product__details__tab" style={{ paddingTop: '0px' }}>
                 <ul className="nav nav-tabs" role="tablist">
                   <li className="nav-item">
                     <a className="nav-link active" data-toggle="tab" href="#tabs-1" role="tab"
@@ -92,7 +151,7 @@ function MeterialDetail() {
                   <div className="tab-pane active" id="tabs-1" role="tabpanel">
                     <div className="product__details__tab__desc">
                       <div className="row">
-                        <ul style={{width:'80%', marginLeft:'20%'}}>
+                        <ul style={{ width: '80%', marginLeft: '20%' }}>
                           {data.data.detail.prep &&
                             <li className="info_list"><b>손질방법</b> <span>{data.data.detail.prep}</span></li>
                           }
@@ -112,22 +171,15 @@ function MeterialDetail() {
                   <div className="tab-pane" id="tabs-2" role="tabpanel">
                     <div className="product__details__tab__desc">
                       <h6>Step</h6>
-                      <p>Vestibulum ac diam sit amet quam vehicula elementum sed sit amet dui.
-                        Pellentesque in ipsum id orci porta dapibus. Proin eget tortor risus.
-                        Vivamus suscipit tortor eget felis porttitor volutpat. Vestibulum ac diam
-                        sit amet quam vehicula elementum sed sit amet dui. Donec rutrum congue leo
-                        eget malesuada. Vivamus suscipit tortor eget felis porttitor volutpat.
-                        Curabitur arcu erat, accumsan id imperdiet et, porttitor at sem. Praesent
-                        sapien massa, convallis a pellentesque nec, egestas non nisi. Vestibulum ac
-                        diam sit amet quam vehicula elementum sed sit amet dui. Vestibulum ante
-                        ipsum primis in faucibus orci luctus et ultrices posuere cubilia Curae;
-                        Donec velit neque, auctor sit amet aliquam vel, ullamcorper sit amet ligula.
-                        Proin eget tortor risus.</p>
-                      <p>Praesent sapien massa, convallis a pellentesque nec, egestas non nisi. Lorem
-                        ipsum dolor sit amet, consectetur adipiscing elit. Mauris blandit aliquet
-                        elit, eget tincidunt nibh pulvinar a. Cras ultricies ligula sed magna dictum
-                        porta. Cras ultricies ligula sed magna dictum porta. Sed porttitor lectus
-                        nibh. Mauris blandit aliquet elit, eget tincidunt nibh pulvinar a.</p>
+                      <Review rCount={data.data.reviewCount}
+                        id={window.sessionStorage.id||''}
+                        nickname={window.sessionStorage.nickname||''}
+                        list={data.data.reviewList}
+                        rate={rating}
+                        rating={ratingChange}
+                        msging={msgInsert}
+                        reviewInsert={submitReview}
+                        reviewDelete={deleteReview} />
                     </div>
                   </div>
                 </div>
@@ -151,7 +203,7 @@ function MeterialDetail() {
               modules={[Navigation, Pagination, Scrollbar, A11y, Autoplay]}
               loop={true}
               spaceBetween={10}
-              slidesPerView={data.data.rList.length<5?data.data.rList.length:5}
+              slidesPerView={data.data.rList.length < 5 ? data.data.rList.length : 5}
               centeredSlides={true}
               autoplay={{ delay: 3000, disableOnInteraction: false }}
             >
@@ -159,7 +211,7 @@ function MeterialDetail() {
                 data.data.rList && data.data.rList.map((item) => {
                   return (
                     <SwiperSlide>
-                      <div className="product__item" style={{width:'220px'}}>
+                      <div className="product__item" style={{ width: '220px' }}>
                         <div className="product__item__pic set-bg" style={{ height: '200px' }}>
                           <Link to={'../../recipe/recipeDetail/' + item.no}><img src={item.poster} style={{ width: '220px', height: '200px' }} /></Link>
                         </div>
